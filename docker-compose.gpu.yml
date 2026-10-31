@@ -1,0 +1,14 @@
+# NVIDIA GPU overlay: CUDA build of torch + GPU reservation for the API.
+#   docker compose -f docker-compose.yml -f docker-compose.gpu.yml up --build
+services:
+  api:
+    build:
+      args:
+        TORCH_BACKEND: ${TORCH_BACKEND_GPU:-cu126}
+    image: veronica-api:${TORCH_BACKEND_GPU:-cu126}
+    environment:
+      VERONICA_DEVICE: cuda
+    deploy:
+      resources:
+        reservations:
+          devices: [{ driver: nvidia, count: 1, capabilities: [gpu] }]

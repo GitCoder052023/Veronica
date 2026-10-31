@@ -1,0 +1,33 @@
+name: ci
+on:
+  push:
+  pull_request:
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: backend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with: { python-version: "3.12" }
+      - name: Install locked deps with CPU-only torch
+        run: |
+          uv export --frozen --extra multiview --group dev --no-hashes --no-emit-project -o requirements.txt
+          grep -v -E '^(nvidia-|cuda-|triton)' requirements.txt > r.txt && mv r.txt requirements.txt
+          uv venv
+          uv pip install --torch-backend cpu -r requirements.txt
+      - run: .venv/bin/python -m pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults: { run: { working-directory: frontend } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: npm, cache-dependency-path: frontend/package-lock.json }
+      - run: npm ci
+      - run: npx tsc -b
+      - run: npx vitest run
+      - run: npm run lint
+      - run: npm run build

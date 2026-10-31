@@ -1,0 +1,34 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "veronica-api",
+      "runtimeExecutable": "uv",
+      "runtimeArgs": [
+        "run",
+        "--directory",
+        "backend",
+        "--extra",
+        "multiview",
+        "uvicorn",
+        "veronica.api:app",
+        "--host",
+        "127.0.0.1",
+        "--port",
+        "8787"
+      ],
+      "port": 8787
+    },
+    {
+      "name": "veronica-web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "--prefix",
+        "frontend",
+        "run",
+        "dev"
+      ],
+      "port": 5173
+    }
+  ]
+}

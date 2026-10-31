@@ -1,0 +1,55 @@
+# VERONICA — The Spatial Intelligence System
+#   docker compose up --build                     → studio on http://localhost:8080 (CPU inference)
+#   + NVIDIA GPU:      -f docker-compose.yml -f docker-compose.gpu.yml
+#   + CUDA completer:  --profile completer  (needs an NVIDIA GPU)
+# On a Mac, Docker cannot use the Apple GPU: prefer scripts/run.sh for full speed.
+name: veronica
+
+services:
+  api:
+    build:
+      context: backend
+      args:
+        TORCH_BACKEND: ${TORCH_BACKEND:-cpu}
+    image: veronica-api:${TORCH_BACKEND:-cpu}
+    environment:
+      VERONICA_DEVICE: ${VERONICA_DEVICE:-}
+      VERONICA_DEPTH_MODEL: ${VERONICA_DEPTH_MODEL:-depth-pro}
+      VERONICA_MAX_SIDE: ${VERONICA_MAX_SIDE:-1280}
+      VERONICA_COMPLETER_URL: ${VERONICA_COMPLETER_URL:-}
+      VERONICA_COMPLETER_TOKEN: ${VERONICA_COMPLETER_TOKEN:-}
+    volumes:
+      - veronica-data:/data
+      - ${HF_CACHE:-veronica-models}:/models
+    ports:
+      - "127.0.0.1:${VERONICA_API_PORT:-8787}:8787"
+    # Cap the API so model memory spikes cannot starve other containers on the host.
+    mem_limit: ${VERONICA_API_MEM_LIMIT:-64g}
+    restart: unless-stopped
+
+  web:
+    build: frontend
+    image: veronica-web
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${VERONICA_DOCKER_WEB_PORT:-8080}:80"
+    restart: unless-stopped
+
+  completer:
+    profiles: ["completer"]
+    build: completer-worker
+    image: veronica-completer
+    environment:
+      VERONICA_COMPLETER_TOKEN: ${VERONICA_COMPLETER_TOKEN:-}
+    volumes:
+      - ${HF_CACHE:-veronica-models}:/root/.cache/huggingface
+    deploy:
+      resources:
+        reservations:
+          devices: [{ driver: nvidia, count: 1, capabilities: [gpu] }]
+
+volumes:
+  veronica-data:
+  veronica-models:

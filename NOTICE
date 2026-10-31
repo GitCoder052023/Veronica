@@ -1,0 +1,42 @@
+VERONICA — The Spatial Intelligence System
+Copyright 2026 The VERONICA contributors
+
+This product is licensed under the Apache License, Version 2.0 (see LICENSE).
+
+-------------------------------------------------------------------------------
+Third-party software used by VERONICA (installed as dependencies, not vendored)
+-------------------------------------------------------------------------------
+three.js                      MIT
+three-mesh-bvh                MIT
+React, React DOM              MIT
+zustand                       MIT
+@mediapipe/tasks-vision       Apache-2.0  (WASM runtime copied into the build at install time)
+FastAPI, Uvicorn, Pydantic    MIT / BSD-3-Clause
+PyTorch, torchvision          BSD-3-Clause
+Hugging Face transformers     Apache-2.0
+NumPy, SciPy, scikit-image    BSD-3-Clause
+OpenCV (opencv-python)        Apache-2.0
+trimesh                       MIT
+Pillow                        MIT-CMU (HPND)
+pillow-heif                   BSD-3-Clause (libheif: LGPL-3.0)
+depth-anything-3 (package)    Apache-2.0
+httpx                         BSD-3-Clause
+
+-------------------------------------------------------------------------------
+Model weights downloaded at runtime (NOT distributed with VERONICA)
+-------------------------------------------------------------------------------
+apple/DepthPro-hf                                   Apple ML Research Model License
+                                                    (research / non-commercial use only)
+depth-anything/Depth-Anything-V2-Metric-Indoor-Small-hf   Apache-2.0
+depth-anything/DA3-BASE (Depth Anything 3)          Apache-2.0
+IDEA-Research/grounding-dino-base                   Apache-2.0
+facebook/sam2.1-hiera-base-plus (SAM 2.1)           Apache-2.0
+MediaPipe Hand Landmarker (hand_landmarker.task)    Apache-2.0
+
+Optional CUDA completer worker (completer-worker/):
+microsoft/TRELLIS-image-large                       MIT
+  TRELLIS's GLB texture baking uses diff-gaussian-rasterization
+  (Inria/MPII Gaussian-Splatting License: research / non-commercial).
+
+Users are responsible for complying with the licences of the models they
+download and run.
