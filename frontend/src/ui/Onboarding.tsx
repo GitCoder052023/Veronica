@@ -3,13 +3,23 @@ import { useStudio } from '../store/studio'
 import { startGestures } from './GesturePanel'
 import { BrandMark, Icon } from './Icon'
 
+const KEYS: [string, [string, string][]][] = [
+  ['Look around', [['Drag', 'orbit'], ['Right-drag', 'pan'], ['Scroll', 'zoom']]],
+  ['Select', [['Click', 'one'], ['⇧ Click', 'add'], ['⌘ Drag', 'box'], ['⌥ Click', 'inside a group']]],
+  ['Transform', [['G', 'move'], ['R', 'rotate'], ['S', 'scale'], ['X Y Z', 'lock to an axis']]],
+  ['Handles', [['1 2 3', 'move, rotate, scale'], ['L', 'local or world'], ['⇧ Tab', 'snapping']]],
+  ['Edit', [['⇧ D', 'duplicate'], ['X', 'delete'], ['H', 'hide'], ['⌥ H', 'show all'], ['I', 'isolate']]],
+  ['Group', [['⌘ G', 'group'], ['⇧ ⌘ G', 'ungroup'], ['⌥ G R S', 'clear move, rotation, scale']]],
+  ['View', [['F', 'frame'], ['C', 'photo viewpoint'], ['M', 'shading'], ['P', 'precision'], ['⌘ Z', 'undo']]],
+]
+
 const PRACTICE = [
   { id: 'point', title: 'Point', how: 'Index finger out, others curled', does: 'Aims the cursor and highlights what is under it' },
-  { id: 'pinch', title: 'Pinch', how: 'Touch thumb and index tips', does: 'Tap = select · hold & move = drag the object (or orbit empty space)' },
+  { id: 'pinch', title: 'Pinch', how: 'Touch thumb and index tips', does: 'Tap to select; hold and move to drag the object, or to orbit over empty space' },
   { id: 'open', title: 'Open palm', how: 'All fingers spread, hold still briefly', does: 'Navigate: move to orbit, closer/further to zoom, flick to switch view' },
   { id: 'fist', title: 'Fist', how: 'Close the hand', does: 'Twist the selection with your wrist (or the whole scene)' },
   { id: 'two', title: 'Two-hand pinch', how: 'Pinch with both hands', does: 'Spread to scale / zoom, turn like a wheel to rotate' },
-  { id: 'victory', title: 'Victory ✌', how: 'Index + middle out, hold ~0.6 s', does: 'Toggles precision mode (slower, finer control)' },
+  { id: 'victory', title: 'Two fingers', how: 'Index and middle finger out, hold for about half a second', does: 'Switches precision mode on or off (slower, finer control)' },
 ] as const
 
 export function Onboarding() {
@@ -35,29 +45,28 @@ export function Onboarding() {
   return (
     <div className="overlay" onClick={close}>
       <div className="onboard" onClick={(e) => e.stopPropagation()}>
-        <button className="icon-btn close" onClick={close}><Icon name="close" /></button>
-        <div className="ob-steps">{['Welcome', 'Mouse & keys', 'Hands'].map((s, i) => <span key={s} className={i === step ? 'on' : i < step ? 'done' : ''}>{s}</span>)}</div>
+        <button className="icon-btn close" onClick={close} aria-label="Close"><Icon name="close" /></button>
+        <p className="ob-step tnum">Step {step + 1} of 3</p>
         {step === 0 && (
           <div className="ob-body">
-            <div className="ob-brand"><BrandMark size={28} /><div><b>VERONICA</b><span>The Spatial Intelligence System</span></div></div>
-            <h2>Reconstructed reality, in your hands</h2>
-            <p>VERONICA turns a photograph into a metric 3D scene made of separate objects. Every object can be selected, moved, rotated, scaled, duplicated, hidden or isolated, with a mouse or with your hands in the air.</p>
-            <p className="dim">A single photo only shows one side of each object. VERONICA keeps that distinction visible: <b className="obs-t">observed</b> surfaces come straight from the photo, while <b className="inf-t">inferred</b> surfaces (hidden sides, background behind objects) are estimated and drawn with a hatch.</p>
+            <div className="ob-brand"><BrandMark size={30} /><div><b>VERONICA</b><span>The spatial intelligence system</span></div></div>
+            <h2>A photo of a room, as a room you can rearrange</h2>
+            <p>VERONICA measures a photograph in metres and turns every object in it into a separate 3D object. Select, move, turn, scale, copy, hide or isolate any of them, with a mouse or with your hands in the air.</p>
+            <p className="dim">A photo only shows one side of each object, and VERONICA never hides that. Surfaces <b className="obs-t">seen in a photo</b> come straight from it; surfaces it had to <b className="inf-t">estimate</b>, such as the backs of things, are hatched in blue, the way a draftsman draws hidden edges.</p>
             <div className="ob-nav"><span /><button className="primary" onClick={() => setStep(1)}>Next</button></div>
           </div>
         )}
         {step === 1 && (
           <div className="ob-body">
-            <h2>Mouse, trackpad & keyboard</h2>
-            <div className="keys">
-              <div><kbd>drag</kbd> orbit · <kbd>right-drag</kbd>/<kbd>⇧ drag</kbd> pan · <kbd>scroll</kbd> zoom</div>
-              <div><kbd>click</kbd> select · <kbd>⇧ click</kbd> add · <kbd>⌘ drag</kbd> box select · <kbd>⌥ click</kbd> pick inside group</div>
-              <div><kbd>G</kbd> grab · <kbd>R</kbd> rotate · <kbd>S</kbd> scale, then <kbd>X</kbd><kbd>Y</kbd><kbd>Z</kbd> to constrain</div>
-              <div><kbd>1</kbd><kbd>2</kbd><kbd>3</kbd> gizmo move / rotate / scale · <kbd>L</kbd> local/world · <kbd>⇧ Tab</kbd> snapping</div>
-              <div><kbd>⇧ D</kbd> duplicate · <kbd>X</kbd>/<kbd>Del</kbd> delete · <kbd>H</kbd> hide · <kbd>⌥ H</kbd> show all · <kbd>I</kbd> isolate</div>
-              <div><kbd>⌘ G</kbd> group · <kbd>⇧⌘ G</kbd> ungroup · <kbd>⌥ G</kbd>/<kbd>⌥ R</kbd>/<kbd>⌥ S</kbd> clear move/rot/scale</div>
-              <div><kbd>F</kbd> frame · <kbd>C</kbd> photo viewpoint · <kbd>M</kbd> render mode · <kbd>P</kbd> precision · <kbd>⌘ Z</kbd> undo</div>
-            </div>
+            <h2>Mouse, trackpad and keyboard</h2>
+            <dl className="keys">
+              {KEYS.map(([what, how]) => (
+                <div key={what} style={{ display: 'contents' }}>
+                  <dt>{what}</dt>
+                  <dd>{how.map(([k, does]) => <span key={k}><kbd>{k}</kbd> {does}</span>)}</dd>
+                </div>
+              ))}
+            </dl>
             <div className="ob-nav"><button className="ghost" onClick={() => setStep(0)}>Back</button><button className="primary" onClick={() => setStep(2)}>Next</button></div>
           </div>
         )}
@@ -65,19 +74,22 @@ export function Onboarding() {
           <div className="ob-body">
             <h2>Hand control</h2>
             {!on ? (
-              <p>Turn on your webcam. Hand landmarks are computed locally in this browser; no video leaves your machine. <button className="primary" onClick={() => startGestures()}>Enable camera</button></p>
+              <>
+                <p>Turn on your webcam to try them. Your hands are tracked inside this browser; no video leaves your computer.</p>
+                <div><button className="primary" onClick={() => startGestures()}>Turn on the camera</button></div>
+              </>
             ) : (
-              <p className="dim">Try each gesture. They tick off as VERONICA recognises them. Keep your hand roughly 40–80 cm from the camera.</p>
+              <p className="dim">Try each gesture; each one ticks off when VERONICA recognises it. Keep your hand about 40 to 80 cm from the camera.</p>
             )}
-            <div className="practice">
+            <ul className="practice">
               {PRACTICE.map((g) => (
-                <div key={g.id} className={`pg ${done.has(g.id) ? 'ok' : ''}`}>
-                  <span className="check">{done.has(g.id) ? '✓' : ''}</span>
-                  <div><b>{g.title}</b> <span className="dim">{g.how}</span><br /><span>{g.does}</span></div>
-                </div>
+                <li key={g.id} className={`pg ${done.has(g.id) ? 'ok' : ''}`}>
+                  <span className="tick">{done.has(g.id) && <Icon name="check" size={12} />}</span>
+                  <div><b>{g.title}</b><br /><span>{g.how}.</span><br />{g.does}.</div>
+                </li>
               ))}
-            </div>
-            <p className="dim small">Both palms open for ~0.6 s cancels the current gesture or undoes the last edit. Use “Calibrate pinch” in the hand panel if pinches fire too early or too late.</p>
+            </ul>
+            <p className="dim">Hold both palms open for about half a second to cancel a gesture or undo the last edit. If pinches fire too early or too late, use Calibrate pinch in the hand panel.</p>
             <div className="ob-nav"><button className="ghost" onClick={() => setStep(1)}>Back</button><button className="primary" onClick={close}>Start</button></div>
           </div>
         )}

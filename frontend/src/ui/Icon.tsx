@@ -31,6 +31,11 @@ const P: Record<string, string> = {
   layers: 'M12 3l9 5-9 5-9-5zM3 13l9 5 9-5',
   photo: 'M3 5h18v14H3zM3 16l5-5 4 4 3-3 6 6',
   spark: 'M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5L18 18M6 18l2.5-2.5M15.5 8.5L18 6',
+  check: 'M5 12.5l4.5 4.5L19 7.5',
+  turnLeft: 'M4 12a8 8 0 1 0 2.3-5.6M4 4v4.5h4.5',
+  turnRight: 'M20 12a8 8 0 1 1-2.3-5.6M20 4v4.5h-4.5',
+  grow: 'M9 4H4v5M15 4h5v5M9 20H4v-5M15 20h5v-5',
+  shrink: 'M4 9h5V4M20 9h-5V4M4 15h5v5M20 15h-5v5',
 }
 
 export function Icon({ name, size = 16 }: { name: string; size?: number }) {
@@ -41,13 +46,16 @@ export function Icon({ name, size = 16 }: { name: string; size?: number }) {
   )
 }
 
-/** VERONICA mark: a spatial cell (hexagonal projection of a cube) holding a V. */
+/** VERONICA mark: a box in oblique projection drawn the way a draftsman would: the
+ *  edges a camera sees in solid ink, the hidden ones dashed in non-photo blue. It is the
+ *  product's whole idea, measured versus estimated, at 22 pixels. */
 export function BrandMark({ size = 22 }: { size?: number }) {
   return (
-    <svg className="brand-mark" viewBox="0 0 32 32" width={size} height={size} aria-hidden>
-      <path d="M16 3.5l10.8 6.25v12.5L16 28.5 5.2 22.25V9.75z" fill="none" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M10.2 11l5.8 11 5.8-11" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
-      <circle cx="16" cy="11" r="1.3" fill="currentColor" opacity=".55" />
+    <svg className="brand-mark" viewBox="0 0 24 24" width={size} height={size} aria-hidden>
+      <g fill="none" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M9.5 3.5v10.5h10.5M9.5 14L3.5 20" stroke="var(--estimated)" strokeWidth="1.5" strokeDasharray="2 2.2" />
+        <path d="M3.5 9.5h10.5v10.5H3.5zM3.5 9.5l6-6h10.5v10.5l-6 6M14 9.5l6-6" stroke="currentColor" strokeWidth="1.8" />
+      </g>
     </svg>
   )
 }

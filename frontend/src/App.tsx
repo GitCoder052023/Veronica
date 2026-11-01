@@ -42,8 +42,10 @@ export default function App() {
       <main className="workspace">
         <LeftPanel />
         <div className="center">
-          <Viewport onFiles={(f) => reconstruct(f)} />
-          <GesturePanel />
+          <div className="sheet">
+            <Viewport onFiles={(f) => reconstruct(f)} />
+            <GesturePanel />
+          </div>
         </div>
         <RightPanel />
       </main>
@@ -54,30 +56,40 @@ export default function App() {
   )
 }
 
+const DEVICE_NAME: Record<string, string> = { mps: 'Apple GPU', cuda: 'NVIDIA GPU', cpu: 'CPU' }
+
 function TopBar() {
   const health = useStudio((s) => s.health)
   const set = useStudio((s) => s.set)
   const manifest = useStudio((s) => s.manifest)
   useStudio((s) => s.rev)
   const e = runtime.engine
+  const views = manifest?.source.views ?? 1
+  const objects = manifest?.nodes.filter((n) => n.kind === 'object').length ?? 0
   return (
     <header className="topbar">
       <div className="brand">
         <BrandMark size={22} />
         <b>VERONICA</b>
-        <span className="dim">The Spatial Intelligence System</span>
       </div>
-      {manifest && <div className="crumb mono">{manifest.source.name} · {manifest.id}</div>}
+      {manifest ? (
+        <div className="title">
+          <h1>{manifest.source.name || 'Untitled scene'}</h1>
+          <span>{views === 1 ? 'One photo' : `${views} photos`}, {objects} {objects === 1 ? 'object' : 'objects'}</span>
+        </div>
+      ) : (
+        <div className="title"><h1>New scene</h1></div>
+      )}
       <span className="grow" />
       {e && manifest && (
-        <div className="seg">
-          <button disabled={!e.history.canUndo} onClick={() => e.undo()} title="Undo (⌘Z)"><Icon name="undo" size={15} /></button>
-          <button disabled={!e.history.canRedo} onClick={() => e.redo()} title="Redo (⇧⌘Z)"><Icon name="redo" size={15} /></button>
-        </div>
+        <>
+          <button className="icon-btn" disabled={!e.history.canUndo} onClick={() => e.undo()} title="Undo (⌘Z)" aria-label="Undo"><Icon name="undo" size={16} /></button>
+          <button className="icon-btn" disabled={!e.history.canRedo} onClick={() => e.redo()} title="Redo (⇧⌘Z)" aria-label="Redo"><Icon name="redo" size={16} /></button>
+        </>
       )}
       <button className="ghost small" onClick={() => set({ onboarding: true })}>Guide</button>
-      <div className={`backend ${health ? 'ok' : 'down'}`} title={health ? `Models loaded: ${health.loaded.join(', ') || 'none yet'}` : 'Backend offline'}>
-        <span className="status-dot live" /> {health ? `inference · ${health.device}` : 'offline'}
+      <div className={`backend ${health ? 'ok' : 'down'}`} title={health ? `Models loaded: ${health.loaded.join(', ') || 'none yet'}` : 'The VERONICA API is not answering'}>
+        <span className={`status-dot ${health ? 'live' : ''}`} /> <span className="label">{health ? `Running on ${DEVICE_NAME[health.device] ?? health.device}` : 'Backend offline'}</span>
       </div>
     </header>
   )

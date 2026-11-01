@@ -84,11 +84,11 @@ export function Viewport({ onFiles }: { onFiles: (f: File[]) => void }) {
       {box && (
         <div className="box-select" style={{ left: Math.min(box.x0, box.x1), top: Math.min(box.y0, box.y1), width: Math.abs(box.x1 - box.x0), height: Math.abs(box.y1 - box.y0) }} />
       )}
-      {!manifest && !loading && <EmptyState />}
+      {!manifest && !loading && <EmptyState onFiles={onFiles} />}
       {loading && (
-        <div className="viewport-loading">
-          <div className="scanline" />
-          Streaming geometry {loading.done}/{loading.total}
+        <div className="viewport-loading float" role="status">
+          <span>Loading geometry, <span className="tnum">{loading.done} of {loading.total}</span> parts</span>
+          <div className="job-bar"><i style={{ width: `${(loading.done / Math.max(1, loading.total)) * 100}%` }} /></div>
         </div>
       )}
       {manifest && <ViewportToolbar />}
@@ -101,20 +101,20 @@ export function Viewport({ onFiles }: { onFiles: (f: File[]) => void }) {
   )
 }
 
-function EmptyState() {
+function EmptyState({ onFiles }: { onFiles: (f: File[]) => void }) {
+  const input = useRef<HTMLInputElement>(null)
   return (
     <div className="empty-state">
-      <div className="empty-mark">
-        <svg viewBox="0 0 120 120" width="120" height="120" aria-hidden>
-          <g fill="none" stroke="currentColor" strokeWidth="1">
-            <path d="M60 10l43 25v50l-43 25-43-25V35z" opacity=".5" />
-            <path d="M60 10v100M17 35l86 50M103 35L17 85" opacity=".18" />
-            <circle cx="60" cy="60" r="4" />
-          </g>
-        </svg>
+      <div className="empty-card">
+        <h2>Start with a photo of a room</h2>
+        <p>VERONICA measures every object it can see, in metres, and turns each one into a separate 3D object. Anything the photo could not see is estimated and drawn hatched in blue, so you always know which is which.</p>
+        <p>Three to eight photos from different angles let it measure the backs as well.</p>
+        <div className="actions">
+          <input ref={input} type="file" accept="image/*,.heic,.heif" multiple hidden onChange={(e) => { const f = [...(e.target.files ?? [])]; if (f.length) onFiles(f); e.target.value = '' }} />
+          <button className="primary" onClick={() => input.current?.click()}><Icon name="upload" size={15} /> Choose photos</button>
+          <span className="dim" style={{ alignSelf: 'center' }}>or drop them here</span>
+        </div>
       </div>
-      <h2>Drop a photograph to reconstruct it</h2>
-      <p>One photo gives you an editable scene of separate objects. Add more photos of the same place to recover geometry from several viewpoints.</p>
     </div>
   )
 }
@@ -126,9 +126,9 @@ function ViewportToolbar() {
   if (!e) return null
   return (
     <div className="vp-toolbar">
-      <div className="seg">
+      <div className="seg" role="group" aria-label="Transform tool">
         {(['translate', 'rotate', 'scale'] as const).map((m, i) => (
-          <button key={m} className={e.gizmoMode === m ? 'on' : ''} title={`${m} (${i + 1})`} onClick={() => e.setGizmoMode(m)}>
+          <button key={m} className={e.gizmoMode === m ? 'on' : ''} title={`${({ translate: 'Move', rotate: 'Rotate', scale: 'Scale' })[m]} (${i + 1})`} aria-label={m} onClick={() => e.setGizmoMode(m)}>
             <Icon name={m} />
           </button>
         ))}
@@ -137,10 +137,10 @@ function ViewportToolbar() {
         <button className={e.space === 'local' ? 'on' : ''} title="Toggle local / world axes (L)" onClick={() => e.setSpace(e.space === 'world' ? 'local' : 'world')}>
           {e.space === 'world' ? 'World' : 'Local'}
         </button>
-        <button className={e.snap.enabled ? 'on' : ''} title="Snapping (Shift+Tab)" onClick={() => e.setSnap({ enabled: !e.snap.enabled })}>
+        <button className={e.snap.enabled ? 'on' : ''} title="Snapping (Shift+Tab)" aria-label="Snapping" onClick={() => e.setSnap({ enabled: !e.snap.enabled })}>
           <Icon name="magnet" />
         </button>
-        <button className={e.precision ? 'on' : ''} title="Precision mode (P)" onClick={() => runtime.gestures?.setPrecision(!e.precision)}>
+        <button className={e.precision ? 'on' : ''} title="Precision mode (P)" aria-label="Precision mode" onClick={() => runtime.gestures?.setPrecision(!e.precision)}>
           <Icon name="target" />
         </button>
       </div>
@@ -151,7 +151,7 @@ function ViewportToolbar() {
           </button>
         ))}
       </div>
-      {sel.length > 0 && <div className="vp-sel">{sel.length} selected</div>}
+      {sel.length > 1 && <div className="vp-sel float">{sel.length} selected</div>}
     </div>
   )
 }
@@ -160,9 +160,9 @@ function ViewBar() {
   const manifest = useStudio((s) => s.manifest)
   const cams = manifest?.cameras ?? []
   return (
-    <div className="viewbar">
+    <div className="viewbar float" role="group" aria-label="Camera">
       {cams.length > 1 && cams.map((_, i) => (
-        <button key={`cam${i}`} onClick={() => runtime.engine!.viewFromCamera(i)} title={`Viewpoint of photo ${i + 1}`}>Cam {i + 1}</button>
+        <button key={`cam${i}`} onClick={() => runtime.engine!.viewFromCamera(i)} title={`Viewpoint of photo ${i + 1}`}>Photo {i + 1}</button>
       ))}
       {VIEWS.map((v) => (
         <button key={v.id} onClick={() => runtime.engine!.setView(v.id)} title={v.key ? `${v.label} (${v.key})` : v.label}>
@@ -179,11 +179,11 @@ function ModalHud() {
   if (!modal) return null
   const names: Record<string, string> = { translate: 'Grab', rotate: 'Rotate', scale: 'Scale' }
   return (
-    <div className="modal-hud">
+    <div className="modal-hud float">
       <b>{names[modal.op]}</b>
       {modal.axis && <span className={`ax ax-${modal.axis}`}>{modal.axis.toUpperCase()} axis</span>}
-      <span className="mono">{modal.value}</span>
-      <span className="dim">X/Y/Z constrain · Shift precision · click / ⏎ confirm · Esc cancel</span>
+      <span className="tnum">{modal.value}</span>
+      <span className="dim">X, Y or Z to constrain, Shift for precision, click or Return to confirm, Esc to cancel</span>
     </div>
   )
 }
@@ -197,6 +197,7 @@ function GestureCursors() {
       {hud.hands.map((h) => (
         <div key={h.id} className={`hand-cursor pose-${h.pose}`} style={{ left: `${h.cursor[0] * 100}%`, top: `${h.cursor[1] * 100}%` }}>
           <svg viewBox="-24 -24 48 48" width="48" height="48">
+            <circle r={14 - h.pinchStrength * 8} className="halo" />
             <circle r={14 - h.pinchStrength * 8} className="ring" />
             <circle r="2.2" className="dot" />
             <circle r="18" className="progress" strokeDasharray={`${h.pinchStrength * 113} 113`} />
@@ -205,7 +206,7 @@ function GestureCursors() {
         </div>
       ))}
       <div className="gesture-hud">
-        <div className="gh-op">
+        <div className="gh-op float">
           <span className={`dot ${hud.op ? 'live' : ''}`} />
           {hud.label}
           {hud.precision && <span className="chip">precision</span>}
@@ -221,9 +222,9 @@ function Stats() {
   const t = useStudio((x) => x.trackerStats)
   const on = useStudio((x) => x.gestureOn)
   return (
-    <div className="stats mono">
-      {s.fps} fps · {(s.triangles / 1000).toFixed(0)}k tris
-      {on && t && ` · hands ${t.fps} fps / ${t.inferenceMs} ms ${t.delegate}`}
+    <div className="stats tnum">
+      {s.fps} fps, {(s.triangles / 1000).toFixed(0)}k triangles
+      {on && t && `, hands ${t.fps} fps at ${t.inferenceMs} ms`}
     </div>
   )
 }
@@ -234,9 +235,9 @@ function Legend() {
   if (!e) return null
   if (e.renderMode !== 'provenance' && !(e.renderMode === 'photo' && e.inferredStyle && e.showInferred)) return null
   return (
-    <div className="legend">
-      <span><i className="sw obs" /> observed in photo</span>
-      <span><i className={`sw ${e.renderMode === 'provenance' ? 'inf' : 'hatch'}`} /> inferred (not seen)</span>
+    <div className="legend float">
+      <span><i className={`sw obs ${e.renderMode === 'provenance' ? 'clay' : ''}`} /> Seen in a photo</span>
+      <span><i className={`sw ${e.renderMode === 'provenance' ? 'inf' : 'hatch'}`} /> Estimated, not seen</span>
     </div>
   )
 }

@@ -113,7 +113,7 @@ export class VeronicaEngine {
     this.scene.add(this.pivot)
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x223344, 1.2))
 
-    this.grid = new THREE.GridHelper(20, 80, 0x2a6b66, 0x16252b)
+    this.grid = new THREE.GridHelper(20, 80, 0x8a9296, 0xc4c9cc)
     ;(this.grid.material as THREE.Material).transparent = true
     ;(this.grid.material as THREE.Material).opacity = 0.55
     ;(this.grid.material as THREE.Material).depthWrite = false
@@ -285,7 +285,7 @@ export class VeronicaEngine {
         [-hw, -hh, -d], [hw, -hh, -d], [hw, -hh, -d], [hw, hh, -d], [hw, hh, -d], [-hw, hh, -d], [-hw, hh, -d], [-hw, -hh, -d],
         [-hw * 0.4, hh * 1.1, -d], [0, hh * 1.5, -d], [0, hh * 1.5, -d], [hw * 0.4, hh * 1.1, -d]]
       const g = new THREE.BufferGeometry().setFromPoints(pts.map((p) => new THREE.Vector3(...p)))
-      const line = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: i === 0 ? 0x5ee6d0 : 0x8fb3c4, transparent: true, opacity: 0.85 }))
+      const line = new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color: i === 0 ? 0x15181a : 0x626a6f, transparent: true, opacity: 0.85 }))
       line.applyMatrix4(M)
       line.userData.cameraIndex = i
       this.cameraRig.add(line)
@@ -433,7 +433,7 @@ export class VeronicaEngine {
     }
     for (const id of this.selection) {
       if (!this.boxHelpers.has(id)) {
-        const b = new THREE.BoxHelper(this.nodes.get(id)!.object, 0x5ee6d0)
+        const b = new THREE.BoxHelper(this.nodes.get(id)!.object, 0xe39a12)
         ;(b.material as THREE.LineBasicMaterial).transparent = true
         ;(b.material as THREE.LineBasicMaterial).opacity = 0.7
         this.scene.add(b)
@@ -1091,7 +1091,7 @@ export class VeronicaEngine {
     const hide = [this.gizmoHelper, ...this.boxHelpers.values()]
     const vis = hide.map((o) => o.visible)
     hide.forEach((o) => (o.visible = false))
-    this.renderer.setClearColor(0x07090c, 1)
+    this.renderer.setClearColor(0xdfe2e2, 1)
     this.renderer.render(this.scene, this.camera)
     return new Promise((res, rej) => {
       this.renderer.domElement.toBlob((b) => (b ? res(b) : rej(new Error('capture failed'))), 'image/png')
@@ -1107,7 +1107,7 @@ export class VeronicaEngine {
     const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 12_000_000 })
     const chunks: Blob[] = []
     rec.ondataavailable = (e) => e.data.size && chunks.push(e.data)
-    this.renderer.setClearColor(0x07090c, 1)
+    this.renderer.setClearColor(0xdfe2e2, 1)
     rec.start(250)
     this.recording = { rec, chunks, turntable }
     this.events.emit('change', undefined)

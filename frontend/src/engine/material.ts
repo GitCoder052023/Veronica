@@ -55,13 +55,15 @@ void main() {
     col = vec3(0.78, 0.8, 0.83) * l;
   } else if (mode == 2) {
     float l = 0.45 + 0.55 * max(dot(n, v), 0.0);
-    col = (inferred ? vec3(0.83, 0.42, 1.0) : vec3(0.22, 0.86, 0.78)) * l;
+    // seen in a photo: neutral clay; estimated: non-photo blue (#1d6aa8, linear)
+    col = (inferred ? vec3(0.012, 0.145, 0.39) * 1.6 : vec3(0.62, 0.63, 0.63)) * l;
   } else {
     col = n * 0.5 + 0.5;
   }
   if (inferred && mode == 0 && inferredStyle > 0.5) {
     float s = step(0.5, fract((gl_FragCoord.x + gl_FragCoord.y) / 9.0));
-    col = mix(col * 0.8, vec3(0.72, 0.55, 1.0), 0.18 + 0.1 * s);
+    // the pencil's pale blue (#a9d6ea, linear) laid over the texture in diagonal strokes
+    col = mix(col * 0.85, vec3(0.40, 0.67, 0.82), 0.26 + 0.2 * s);
   }
   float rim = pow(1.0 - max(dot(n, v), 0.0), 2.0);
   col += highlight * highlightAmount * (0.18 + 0.9 * rim);
@@ -82,7 +84,7 @@ export function createSurfaceMaterial(map: THREE.Texture | null, hasColor = fals
       discardObserved: { value: 0 },
       showInferred: { value: 1 },
       inferredStyle: { value: 1 },
-      highlight: { value: new THREE.Color(0x5ee6d0) },
+      highlight: { value: new THREE.Color(0xe39a12) },
       highlightAmount: { value: 0 },
       opacity: { value: 1 },
       time: { value: 0 },

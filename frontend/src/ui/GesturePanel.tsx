@@ -10,6 +10,13 @@ const CONNECTIONS: [number, number][] = [
   [9, 13], [13, 14], [14, 15], [15, 16], [13, 17], [0, 17], [17, 18], [18, 19], [19, 20],
 ]
 const CALIB_KEY = 'veronica.gesture.thresholds'
+const MODE_LABEL: Record<GestureMode, string> = { auto: 'Auto', navigate: 'Camera', object: 'Objects', scene: 'Scene' }
+const MODE_HELP: Record<GestureMode, string> = {
+  auto: 'Pinch an object to move it, pinch empty space to orbit',
+  navigate: 'Hands only move the camera',
+  object: 'Hands only move the selected objects',
+  scene: 'Hands move the whole scene',
+}
 
 export async function startGestures() {
   const st = useStudio.getState()
@@ -81,55 +88,54 @@ export function GesturePanel() {
   }, [hud]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
-    <div className={`gesture-panel ${collapsed ? 'collapsed' : ''}`}>
+    <div className={`gesture-panel float ${collapsed ? 'collapsed' : ''}`}>
       <header>
         <Icon name="hand" />
-        <span>Hand control</span>
-        <span className={`status-dot ${on ? 'live' : ''}`} />
+        <h2>Hand control</h2>
         <span className="grow" />
-        {on && <button className="icon-btn" onClick={() => setCollapsed(!collapsed)} title="Collapse"><Icon name="chevron" size={12} /></button>}
-        <button className={`toggle ${on ? 'on' : ''}`} onClick={() => (on ? stopGestures() : startGestures())}>{on ? 'On' : 'Off'}</button>
+        {on && <button className="icon-btn" onClick={() => setCollapsed(!collapsed)} title={collapsed ? 'Expand' : 'Collapse'} aria-label={collapsed ? 'Expand' : 'Collapse'}><Icon name="chevron" size={12} /></button>}
+        <button role="switch" aria-checked={on} aria-label="Hand control" className={`switch ${on ? 'on' : ''}`} onClick={() => (on ? stopGestures() : startGestures())} />
       </header>
       {err && <div className="note error">{err}</div>}
       {!on && !err && (
         <div className="gp-off">
-          <p>Track both hands with your webcam and manipulate the scene in the air. Video stays on this device: landmarks run locally in the browser (MediaPipe, WebGL / WASM).</p>
-          <button className="ghost small" onClick={() => set({ onboarding: true })}>Learn the gestures</button>
+          <p>Move objects with your hands in front of the webcam. The video never leaves this browser.</p>
+          <div><button className="small" onClick={() => set({ onboarding: true })}>Learn the gestures</button></div>
         </div>
       )}
       {on && !collapsed && (
         <>
           <Preview />
-          <div className="seg full">
+          <div className="seg full" role="group" aria-label="What your hands move">
             {(['auto', 'navigate', 'object', 'scene'] as GestureMode[]).map((m) => (
-              <button key={m} className={mode === m ? 'on' : ''} onClick={() => { runtime.gestures?.setMode(m); setMode(m) }}>{m}</button>
+              <button key={m} className={mode === m ? 'on' : ''} title={MODE_HELP[m]} onClick={() => { runtime.gestures?.setMode(m); setMode(m) }}>{MODE_LABEL[m]}</button>
             ))}
           </div>
           <div className="hands-row">
             {(hud?.hands ?? []).map((h) => (
               <div key={h.id} className="hand-chip">
-                <b>{h.id}</b> <span className={`pose pose-${h.pose}`}>{h.pose}</span>
+                <b>{h.id} hand</b> <span className={`pose pose-${h.pose}`}>{h.pose === 'none' ? 'no pose' : h.pose}</span>
                 <div className="meter"><i style={{ width: `${h.pinchStrength * 100}%` }} /></div>
               </div>
             ))}
-            {!hud?.hands.length && <span className="dim small">No hands in view</span>}
+            {!hud?.hands.length && <span className="dim">No hands in view yet</span>}
           </div>
           <div className="gp-foot">
-            <button className="ghost small" onClick={() => setCalib({ step: 'open', samples: [] })}>Calibrate pinch</button>
-            <button className="ghost small" onClick={() => set({ onboarding: true })}>Gesture guide</button>
+            <button className="small" onClick={() => setCalib({ step: 'open', samples: [] })}>Calibrate pinch</button>
+            <button className="ghost small" onClick={() => set({ onboarding: true })}>Gestures</button>
             {cams.length > 1 && (
               <select className="small" defaultValue={localStorage.getItem('veronica.camera') ?? ''} onChange={async (e) => { localStorage.setItem('veronica.camera', e.target.value); stopGestures(); await startGestures() }}>
                 {cams.map((c) => <option key={c.deviceId} value={c.deviceId}>{c.label || 'Camera'}</option>)}
               </select>
             )}
           </div>
-          {stats && <div className="dim small mono">{stats.resolution} · {stats.fps} fps · {stats.inferenceMs} ms/frame · {stats.delegate}</div>}
+          {stats && <div className="dim small tnum">{stats.resolution}, {stats.fps} fps, {stats.inferenceMs} ms per frame on the {stats.delegate}</div>}
           {calib && (
             <div className="calib">
-              {calib.step === 'open' && <><b>1/2</b> Hold one hand open, facing the camera… <Progress n={calib.samples.length} /></>}
-              {calib.step === 'pinch' && <><b>2/2</b> Now pinch thumb and index together and hold… <Progress n={calib.samples.length} /></>}
+              {calib.step === 'open' && <><span>Hold one hand open, facing the camera.</span><Progress n={calib.samples.length} /></>}
+              {calib.step === 'pinch' && <><span>Now pinch your thumb and index finger together and hold.</span><Progress n={calib.samples.length} /></>}
               {calib.step === 'done' && (
-                <>Calibrated: open {calib.open?.toFixed(2)} · pinched {calib.pinch?.toFixed(2)}. <button className="link" onClick={() => setCalib(null)}>Done</button></>
+                <span>Pinch calibrated (open {calib.open?.toFixed(2)}, pinched {calib.pinch?.toFixed(2)}). <button className="link" onClick={() => setCalib(null)}>Done</button></span>
               )}
             </div>
           )}
@@ -164,7 +170,7 @@ function Preview() {
       ctx.clearRect(0, 0, w, h)
       const g = runtime.gestures?.gestures.opts.activeRegion
       if (g) {
-        ctx.strokeStyle = 'rgba(94,230,208,0.25)'
+        ctx.strokeStyle = 'rgba(255,255,255,0.35)'
         ctx.setLineDash([4, 4])
         ctx.strokeRect(g.x0 * w, g.y0 * h, (g.x1 - g.x0) * w, (g.y1 - g.y0) * h)
         ctx.setLineDash([])
@@ -174,12 +180,12 @@ function Preview() {
       res.landmarks.forEach((lm, hi) => {
         const X = (i: number) => (1 - lm[i].x) * w
         const Y = (i: number) => lm[i].y * h
-        ctx.strokeStyle = hi === 0 ? 'rgba(94,230,208,0.9)' : 'rgba(196,140,255,0.9)'
+        ctx.strokeStyle = hi === 0 ? 'rgba(227,154,18,0.95)' : 'rgba(169,214,234,0.95)'
         ctx.lineWidth = 2 * devicePixelRatio
         ctx.beginPath()
         for (const [a, b] of CONNECTIONS) { ctx.moveTo(X(a), Y(a)); ctx.lineTo(X(b), Y(b)) }
         ctx.stroke()
-        ctx.fillStyle = '#e8fffb'
+        ctx.fillStyle = '#ffffff'
         for (let i = 0; i < 21; i++) { ctx.beginPath(); ctx.arc(X(i), Y(i), (i === 4 || i === 8 ? 3.5 : 2) * devicePixelRatio, 0, Math.PI * 2); ctx.fill() }
       })
     }

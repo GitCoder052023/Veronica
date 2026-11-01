@@ -75,16 +75,16 @@ export function SourceView() {
     <div className="overlay" onClick={() => set({ sourceOpen: false })}>
       <div className="source-view" onClick={(e) => e.stopPropagation()}>
         <header>
-          <b>Source photo</b>
-          <span className="dim">{m.source.width}×{m.source.height} · instance map</span>
+          <h2>Source photo</h2>
+          <span className="dim tnum">{m.source.width} × {m.source.height} px, each detected object tinted</span>
           <span className="grow" />
           <button className={adding ? 'primary small' : 'ghost small'} onClick={() => setAdding(!adding)} disabled={!!busy || m.mode !== 'single-view'}>
-            <Icon name="plus" size={14} /> {adding ? 'Click the missed object…' : 'Add missed object'}
+            <Icon name="plus" size={14} /> {adding ? 'Now click the missed object' : 'Add a missed object'}
           </button>
-          <button className="icon-btn" onClick={() => set({ sourceOpen: false })}><Icon name="close" /></button>
+          <button className="icon-btn" onClick={() => set({ sourceOpen: false })} aria-label="Close"><Icon name="close" /></button>
         </header>
         <div className={`sv-stage ${adding ? 'adding' : ''}`}>
-          <img src={api.fileUrl(sceneId, m.textures.image)} alt="source" />
+          <img src={api.fileUrl(sceneId, m.textures.image)} alt={`Source photo ${m.source.name}`} />
           <canvas
             ref={canvas}
             onMouseMove={(e) => runtime.engine?.setHovered(nodeAt(e))}
@@ -104,8 +104,8 @@ export function SourceView() {
         <footer>
           {adding && <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Name for the new object (optional)" />}
           <form onSubmit={(e) => { e.preventDefault(); if (text.trim()) addObject({ text: text.trim() }); setText('') }}>
-            <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Find more objects by name: e.g. cable, plug, sticker" disabled={!!busy || m.mode !== 'single-view'} />
-            <button className="ghost small" disabled={!text.trim() || !!busy}>Search</button>
+            <input value={text} onChange={(e) => setText(e.target.value)} placeholder="Find more objects by name, such as cable, plug or sticker" disabled={!!busy || m.mode !== 'single-view'} />
+            <button disabled={!text.trim() || !!busy}>Find</button>
           </form>
         </footer>
       </div>
