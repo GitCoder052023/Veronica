@@ -1,7 +1,8 @@
-"""Generative completion of an object's unseen side (remote CUDA worker, TRELLIS).
+"""Generative completion of an object's unseen side (completer worker: TRELLIS on CUDA, or
+Hunyuan3D-2mini on this Mac).
 
     crops (RGBA, every view that segmented the object)
-        → worker → canonical textured mesh
+        → worker → canonical mesh (textured; or bare, then coloured from the photo)
         → align to the object's measured surface + silhouettes (geometry/align.py)
         → carve against every view's observed free space (only unseen parts survive)
         → stored as gen-<id>.{vrnc,png,json}; replaces the symmetry-prior completion
@@ -89,6 +90,25 @@ def make_crop(image: np.ndarray, mask: np.ndarray, margin: float = 0.12, max_sid
     return rgba
 
 
+def colour_from_photo(P: np.ndarray, view: SceneView, mask: np.ndarray) -> np.ndarray:
+    """Vertex colours for a generated shape that came without any (Hunyuan3D-2mini is shape
+    only). Each vertex takes the photo colour where it projects inside the object's mask, so
+    the hidden side borrows the colour of the visible side in front of it — the same
+    assumption the symmetry prior makes — and the nearest mask pixel when it projects
+    outside the silhouette. The mask is eroded first so background never bleeds in."""
+    core = ndimage.binary_erosion(mask, iterations=2)
+    if core.sum() < 10:
+        core = mask
+    _, (iy, ix) = ndimage.distance_transform_edt(~core, return_indices=True)
+    Xc = P @ view.R_cw.T + view.t_cw
+    z = np.maximum(Xc[:, 2], 1e-6)
+    H, W = mask.shape
+    u = np.clip(np.round(view.K.fx * Xc[:, 0] / z + view.K.cx), 0, W - 1).astype(int)
+    v = np.clip(np.round(view.K.fy * Xc[:, 1] / z + view.K.cy), 0, H - 1).astype(int)
+    smooth = ndimage.uniform_filter(view.image.astype(np.float32), size=(3, 3, 1))  # denoise single-pixel picks
+    return smooth[iy[v, u], ix[v, u]].round().astype(np.uint8)
+
+
 def _support_y(node: dict, man: dict) -> float | None:
     sup = (node.get("relations") or {}).get("supportedBy")
     if not sup:
@@ -135,7 +155,12 @@ def generate_completion(scene_dir: Path, oid: str, client: CompleterClient, para
 
     progress("carve", 0.8, "Keeping only what no photo observed")
     P = (np.c_[gen.positions, np.ones(len(gen.positions))] @ al.matrix.T)[:, :3].astype(np.float32)
-    mesh = Mesh(P, gen.indices.astype(np.uint32), gen.uvs, gen.colors, np.zeros(len(P), np.uint8), f"gen-{oid}" if gen.texture is not None else None)
+    colors = gen.colors
+    if gen.texture is None and colors is None:
+        vi, m = masks[0]
+        colors = colour_from_photo(P.astype(np.float64), views[vi], m)
+        meta["colour"] = f"from photo (view {vi})"
+    mesh = Mesh(P, gen.indices.astype(np.uint32), gen.uvs, colors, np.zeros(len(P), np.uint8), f"gen-{oid}" if gen.texture is not None else None)
     sup = _support_y(node, man)
     if sup is not None:
         below = mesh.positions[:, 1] < sup - 0.01

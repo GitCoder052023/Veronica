@@ -3,14 +3,16 @@
 #   ./scripts/install.sh            backend (uv) + frontend (npm)
 #   ./scripts/install.sh --cpu      Linux without an NVIDIA GPU: CPU-only PyTorch (much smaller)
 #   ./scripts/install.sh --no-multiview   skip Depth Anything 3 (multi-photo reconstruction)
+#   ./scripts/install.sh --no-completer   skip the local hidden-side generator (Apple Silicon)
 set -euo pipefail
 . "$(dirname "$0")/lib.sh"
 
-CPU=0; MULTIVIEW=1
+CPU=0; MULTIVIEW=1; COMPLETER=1
 for a in "$@"; do case "$a" in
   --cpu) CPU=1 ;;
   --no-multiview) MULTIVIEW=0 ;;
-  -h|--help) sed -n '2,6p' "$0"; exit 0 ;;
+  --no-completer) COMPLETER=0 ;;
+  -h|--help) sed -n '2,7p' "$0"; exit 0 ;;
   *) die "unknown option $a" ;;
 esac; done
 
@@ -52,6 +54,22 @@ if [ "$MULTIVIEW" = 1 ]; then
   uv pip install --no-deps "depth-anything-3==0.1.1"
 fi
 ok "backend ready ($(./.venv/bin/python -c 'import torch;print("torch", torch.__version__)'))"
+
+# --- local completer (Apple Silicon) --------------------------------------------
+# Hunyuan3D-2mini generates hidden sides on the Mac's GPU. It lives in its own venv so its
+# dependencies never touch the backend's; run.sh starts it. Weights (~4 GB) download on
+# first use, or with setup.sh --download-models.
+if [ "$OS" = "Darwin" ] && [ "$ARCH" = "arm64" ] && [ "$COMPLETER" = 1 ]; then
+  say "Installing the local hidden-side generator (Hunyuan3D-2mini on Metal)…"
+  cd "$ROOT/completer-worker"
+  uv venv --allow-existing --python 3.12 -q
+  uv pip install --python .venv/bin/python -q -r requirements-mac.txt
+  uv pip install --python .venv/bin/python -q --no-deps "hy3dgen==2.0.2"
+  ok "local completer ready"
+  warn "Hunyuan3D-2mini weights use the Tencent Hunyuan 3D 2.0 Community License, which does not
+    grant rights in the EU, the UK or South Korea. Opt out with --no-completer (or
+    VERONICA_LOCAL_COMPLETER=0 in .env) if that applies to you."
+fi
 
 # --- frontend ------------------------------------------------------------------
 cd "$ROOT/frontend"

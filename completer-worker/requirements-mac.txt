@@ -1,0 +1,20 @@
+# Local completer on Apple Silicon (hunyuan3d-mini engine). Installed by scripts/install.sh
+# into completer-worker/.venv; hy3dgen itself is installed with --no-deps because its
+# declared dependencies pull in gradio, rembg, onnxruntime and texture-baking tooling that
+# the shape model does not use.
+-r requirements.txt
+torch==2.15.0
+torchvision==0.29.2
+transformers==4.57.6
+diffusers==0.39.0
+accelerate==1.15.0
+einops==0.8.2
+omegaconf==2.4.0
+trimesh==5.2.0
+scikit-image==0.26.0
+opencv-python-headless==5.0.0.93
+safetensors==0.8.0
+huggingface-hub==0.36.2
+tqdm==4.70.1
+pymeshlab==2025.7.post1
+fast-simplification==0.2.0

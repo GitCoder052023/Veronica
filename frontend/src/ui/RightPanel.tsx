@@ -154,9 +154,27 @@ function Provenance({ prov }: { prov: NonNullable<VeronicaNode['meta']>['provena
   )
 }
 
-/** How the unseen side is produced. With a CUDA completer worker configured, it can be
- *  generated (TRELLIS); otherwise — the default on machines without an NVIDIA GPU — the
- *  way to get real hidden sides is more photos from other angles. */
+type Completer = NonNullable<ReturnType<typeof useStudio.getState>['health']>['completer']
+
+/** Short model name for buttons: "Hunyuan3D-2mini", "TRELLIS-image-large". */
+function completerName(c: Completer) {
+  return c.engine === 'hunyuan3d-mini' ? 'Hunyuan3D-2mini' : String(c.model ?? 'completer').split('/').pop()
+}
+
+/** Where the crops go and under which licence, shown before anything is generated. */
+function CompleterNote({ c }: { c: Completer }) {
+  return (
+    <p className="dim small">
+      {c.local ? `Runs on this machine (${c.device}). Nothing leaves it.` : `Sends this object’s masked crop(s) to ${c.url} (${c.device}).`}
+      {c.local && !c.loaded && ' The first run loads the model (about 4 GB, downloaded once).'}
+      {c.license && <><br />Licence: {c.license}.</>}
+    </p>
+  )
+}
+
+/** How the unseen side is produced. With a completer worker running (Hunyuan3D-2mini on
+ *  this Mac, or TRELLIS on a CUDA machine) it can be generated; otherwise the way to get
+ *  real hidden sides is more photos from other angles. */
 function HiddenSide({ n }: { n: VeronicaNode }) {
   const health = useStudio((s) => s.health)
   const job = useStudio((s) => s.job)
@@ -191,11 +209,11 @@ function HiddenSide({ n }: { n: VeronicaNode }) {
         <button disabled={busy} onClick={() => revertHidden(n.id)}><Icon name="reset" size={14} /> Revert to symmetry prior</button>
       ) : (
         <button disabled={busy || !c.ok} title={c.ok ? `${c.model} on ${c.device}` : undefined} onClick={() => generateHidden([n.id])}>
-          <Icon name="spark" size={14} /> Generate {c.ok ? `with ${String(c.model).split('/').pop()}` : '(CUDA)'}
+          <Icon name="spark" size={14} /> Generate {c.ok ? `with ${completerName(c)}` : '(completer offline)'}
         </button>
       )}
-      {!c.ok && <p className="dim small">Completer at {c.url} unreachable: {c.reason ?? c.error}</p>}
-      {c.ok && !isGen && <p className="dim small">Sends this object’s masked crop(s) to {c.url} ({c.device}).</p>}
+      {!c.ok && <p className="dim small">Completer at {c.url} unavailable: {c.reason ?? c.error}</p>}
+      {c.ok && !isGen && <CompleterNote c={c} />}
       {inferred > 0.05 && <AddAnglesButton />}
     </div>
   )

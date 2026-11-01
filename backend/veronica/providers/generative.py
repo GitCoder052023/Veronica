@@ -1,9 +1,12 @@
-"""Client for a remote generative completer (see /completer-worker).
+"""Client for a generative completer worker (see /completer-worker).
 
-The worker runs TRELLIS on a CUDA machine; this side only ships RGBA crops and turns the
-returned GLB into a textured mesh. Configure with:
+The worker runs TRELLIS on a CUDA machine, or Hunyuan3D-2mini locally on a Mac; this side
+only ships RGBA crops and turns the returned GLB into a mesh (textured, vertex-coloured, or
+bare for the backend to colour from the photo). Configure with:
 
     VERONICA_COMPLETER_URL=http://gpu-box:8790   VERONICA_COMPLETER_TOKEN=…   (token optional)
+
+`scripts/run.sh` sets the URL itself when it starts the local Mac worker.
 """
 from __future__ import annotations
 
@@ -40,6 +43,13 @@ class CompleterClient:
     def configured(self) -> bool:
         return bool(self.url)
 
+    @property
+    def local(self) -> bool:
+        """The worker runs on this machine, so it shares (unified) GPU memory with the backend."""
+        from urllib.parse import urlparse
+
+        return urlparse(self.url).hostname in ("localhost", "127.0.0.1", "::1")
+
     def _headers(self) -> dict:
         return {"Authorization": f"Bearer {self.token}"} if self.token else {}
 
@@ -49,9 +59,9 @@ class CompleterClient:
         try:
             r = self._client.get(f"{self.url}/v1/health", headers=self._headers(), timeout=5.0)
             r.raise_for_status()
-            return {"configured": True, "url": self.url, **r.json()}
+            return {"configured": True, "url": self.url, "local": self.local, **r.json()}
         except Exception as e:
-            return {"configured": True, "url": self.url, "ok": False, "reason": f"{type(e).__name__}: {e}"}
+            return {"configured": True, "url": self.url, "local": self.local, "ok": False, "reason": f"{type(e).__name__}: {e}"}
 
     def complete(self, crops: list[Image.Image], params: dict | None = None) -> GeneratedMesh:
         if not self.configured:
@@ -81,7 +91,7 @@ def glb_to_mesh(data: bytes, meta: dict | None = None) -> GeneratedMesh:
             tex = img.convert("RGB")
             uvs = np.asarray(vis.uv, np.float32).copy()
             uvs[:, 1] = 1.0 - uvs[:, 1]  # trimesh flips glTF V on load; VERONICA textures use top-left origin
-    if tex is None:
+    if tex is None and vis.kind in ("vertex", "face"):  # an untextured mesh has kind None: no colour to take
         try:
             cols = np.asarray(loaded.visual.to_color().vertex_colors)[:, :3].astype(np.uint8)
         except Exception:

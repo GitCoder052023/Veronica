@@ -69,7 +69,7 @@ export async function addObject(body: { points?: [number, number][]; text?: stri
   }
 }
 
-/** Generate unseen sides on the CUDA completer, then reload keeping the user's edits. */
+/** Generate unseen sides on the completer worker (local Mac or CUDA), then reload keeping the user's edits. */
 export async function generateHidden(ids?: string[], seed = 1) {
   const id = st().sceneId
   if (!id) return

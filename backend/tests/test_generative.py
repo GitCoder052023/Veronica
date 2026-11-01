@@ -138,3 +138,53 @@ def test_rejects_shapes_that_do_not_fit(room, tmp_path, worker, monkeypatch):
         generate_completion(tmp_path, "obj-0", CompleterClient("http://testserver", token="s3cret", client=http))
     man = json.loads((tmp_path / "manifest.json").read_text())
     assert next(n for n in man["nodes"] if n["id"] == "obj-0")["provenance"]["completion"] == "mirror-symmetry"
+
+
+def test_untextured_shape_is_coloured_from_the_photo(room, tmp_path, worker, monkeypatch):
+    """Hunyuan3D-2mini returns bare geometry: the hidden side takes the object's photo colour,
+    never the background's."""
+    http, eng = worker
+    build_scene(room, tmp_path, "gen")
+    room.save(tmp_path / "analysis.npz")
+    bare = trimesh.creation.box((0.5, 0.5, 0.5)).subdivide().subdivide()
+    bare.apply_scale(2.0)
+    monkeypatch.setattr(eng, "generate", lambda images, p: bare.export(file_type="glb"))
+    meta = generate_completion(tmp_path, "obj-0", CompleterClient("http://testserver", token="s3cret", client=http))
+    assert meta["accepted"] and meta["colour"].startswith("from photo")
+    man = json.loads((tmp_path / "manifest.json").read_text())
+    node = next(n for n in man["nodes"] if n["id"] == "obj-0")
+    comp = read_packet(tmp_path / node["representations"]["completion"]["file"])
+    assert "uv" not in comp and "gen-obj-0" not in man["textures"]
+    assert np.abs(comp["color"].astype(int) - (200, 60, 40)).max() <= 2  # the box, not the red-brown background
+
+
+def test_health_reports_without_loading_the_model(monkeypatch):
+    """A local worker must cost no memory until the first generation."""
+    mod = _load_worker()
+    loads = []
+
+    class Lazy(CubeEngine):
+        @classmethod
+        def describe(cls):
+            return {"engine": "test", "model": cls.name, "license": "MIT", "device": "cpu"}
+
+        def __init__(self):
+            loads.append(1)
+            super().__init__()
+
+    monkeypatch.delenv("VERONICA_COMPLETER_TOKEN", raising=False)
+    client = TestClient(mod.create_app(Lazy))
+    h = client.get("/v1/health").json()
+    assert h["ok"] and h["loaded"] is False and h["license"] == "MIT" and not loads
+    r = client.post("/v1/complete", files=[("images", ("a.png", _png(), "image/png"))])
+    assert r.status_code == 200 and loads == [1]
+    assert client.get("/v1/health").json()["loaded"] is True
+
+
+def test_engine_selection(monkeypatch):
+    mod = _load_worker()
+    assert mod.pick_engine("hunyuan3d-mini") is mod.HunyuanMiniEngine
+    assert mod.pick_engine("trellis") is mod.TrellisEngine
+    with pytest.raises(ValueError):
+        mod.pick_engine("nope")
+    assert CompleterClient("http://127.0.0.1:8790").local and not CompleterClient("http://gpu-box:8790").local

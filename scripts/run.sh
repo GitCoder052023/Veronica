@@ -37,13 +37,29 @@ cleanup() {
 }
 trap cleanup INT TERM EXIT
 
+# Local hidden-side generator: installed by install.sh on Apple Silicon. Skipped when a
+# remote completer is configured or VERONICA_LOCAL_COMPLETER=0.
+CPORT="${VERONICA_COMPLETER_PORT:-8790}"
+if [ -z "${VERONICA_COMPLETER_URL:-}" ] && [ "${VERONICA_LOCAL_COMPLETER:-1}" != 0 ] && [ -x "$ROOT/completer-worker/.venv/bin/uvicorn" ]; then
+  if port_busy "$CPORT"; then
+    warn "Port $CPORT is in use; local completer not started (set VERONICA_COMPLETER_PORT in .env)"
+  else
+    say "Starting local completer on :$CPORT (log: .logs/completer.log; model loads on first use)"
+    ( cd "$ROOT/completer-worker" && VERONICA_COMPLETER_ENGINE=hunyuan3d-mini VERONICA_COMPLETER_IDLE_UNLOAD="${VERONICA_COMPLETER_IDLE_UNLOAD:-300}" \
+        exec ./.venv/bin/uvicorn worker:app --host 127.0.0.1 --port "$CPORT" ) >"$LOGS/completer.log" 2>&1 &
+    PIDS+=($!)
+    export VERONICA_COMPLETER_URL="http://127.0.0.1:$CPORT"
+  fi
+fi
+
 say "Starting API on :$API_PORT (log: .logs/api.log)"
 ( cd "$ROOT/backend" && exec ./.venv/bin/uvicorn veronica.api:app --host 127.0.0.1 --port "$API_PORT" ) >"$LOGS/api.log" 2>&1 &
 PIDS+=($!)
+API_PID=$!
 
 for i in $(seq 1 90); do
   if curl -fsS "http://127.0.0.1:$API_PORT/api/health" >/dev/null 2>&1; then break; fi
-  kill -0 "${PIDS[0]}" 2>/dev/null || { tail -n 30 "$LOGS/api.log" >&2; die "API failed to start"; }
+  kill -0 "$API_PID" 2>/dev/null || { tail -n 30 "$LOGS/api.log" >&2; die "API failed to start"; }
   sleep 1
 done
 curl -fsS "http://127.0.0.1:$API_PORT/api/health" >/dev/null 2>&1 || die "API did not become healthy (see .logs/api.log)"
@@ -60,6 +76,7 @@ else
   ( exec npx vite --port "$WEB_PORT" --strictPort --host 127.0.0.1 ) >"$LOGS/web.log" 2>&1 &
 fi
 PIDS+=($!)
+WEB_PID=$!
 for i in $(seq 1 60); do curl -fsS "http://127.0.0.1:$WEB_PORT/" >/dev/null 2>&1 && break; sleep 0.5; done
 curl -fsS "http://127.0.0.1:$WEB_PORT/" >/dev/null 2>&1 || { tail -n 30 "$LOGS/web.log" >&2; die "studio failed to start"; }
 
@@ -69,5 +86,5 @@ if [ "$OPEN" = 1 ]; then
   if have open; then open "$URL"; elif have xdg-open; then xdg-open "$URL" >/dev/null 2>&1 || true; fi
 fi
 # macOS ships bash 3.2 (no `wait -n`): poll until either server exits
-while kill -0 "${PIDS[0]}" 2>/dev/null && kill -0 "${PIDS[1]}" 2>/dev/null; do sleep 1; done
+while kill -0 "$API_PID" 2>/dev/null && kill -0 "$WEB_PID" 2>/dev/null; do sleep 1; done
 warn "A server exited — see .logs/"

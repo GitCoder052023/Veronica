@@ -234,7 +234,8 @@ class GenerateRequest(BaseModel):
 def _completer_or_409():
     st = completer_status()
     if not st.get("configured"):
-        raise HTTPException(409, "No generative completer configured. Run completer-worker on a CUDA machine and set VERONICA_COMPLETER_URL.")
+        raise HTTPException(409, "No generative completer configured. On a Mac, install it with scripts/install.sh and start with scripts/run.sh; "
+                                 "elsewhere run completer-worker on a CUDA machine and set VERONICA_COMPLETER_URL.")
     if not st.get("ok"):
         _completer_status["v"] = None  # retry fresh next time
         raise HTTPException(503, f"Generative completer unreachable: {st.get('reason') or st.get('error')}")
@@ -249,6 +250,15 @@ def generate(scene_id: str, req: GenerateRequest) -> dict:
     params = {"seed": req.seed, "ss_steps": req.steps, "slat_steps": req.steps}
 
     def run(progress):
+        if not completer.local:
+            return generate_all(progress)
+        # The worker shares this machine's (unified) memory: free our models first and keep
+        # reconstructions from reloading them until generation is done.
+        with registry.inference_lock:
+            registry.unload_all()
+            return generate_all(progress)
+
+    def generate_all(progress):
         done, failed = [], []
         for i, oid in enumerate(ids):
             sub = lambda stage, f, msg="": progress(stage, (i + f) / len(ids), f"[{i + 1}/{len(ids)}] {msg}")

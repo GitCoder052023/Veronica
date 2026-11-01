@@ -38,6 +38,11 @@ fi
 if [ "$DL" = yes ]; then
   say "Downloading model weights into the Hugging Face cache…"
   "$PY" -m veronica.cli download-models
+  CW="$ROOT/completer-worker/.venv/bin/python"
+  if [ -x "$CW" ] && [ "${VERONICA_LOCAL_COMPLETER:-1}" != 0 ]; then
+    say "Downloading Hunyuan3D-2mini for the local completer (~3.8 GB)…"
+    "$CW" -c "from huggingface_hub import snapshot_download as d; d('tencent/Hunyuan3D-2mini', allow_patterns=['hunyuan3d-dit-v2-mini-turbo/config.yaml', 'hunyuan3d-dit-v2-mini-turbo/model.fp16.safetensors', 'LICENSE', 'NOTICE'])"
+  fi
 else
   warn "Skipped model download; weights will download on the first reconstruction."
 fi

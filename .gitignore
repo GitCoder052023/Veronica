@@ -10,3 +10,4 @@ graphify-out/
 frontend/public/mediapipe/
 .env
 .logs/
+.state/

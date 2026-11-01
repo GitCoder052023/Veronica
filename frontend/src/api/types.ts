@@ -63,5 +63,8 @@ export interface Health {
   depthModel: string
   models: Record<string, { role: string; id: string; license: string; note: string }>
   multiView: { available: boolean; reason?: string; model?: string }
-  completer: { configured: boolean; ok: boolean; url?: string; model?: string; device?: string; vram_gb?: number; reason?: string; error?: string }
+  completer: {
+    configured: boolean; ok: boolean; url?: string; local?: boolean; engine?: string; model?: string; license?: string
+    device?: string; vram_gb?: number; loaded?: boolean; reason?: string; error?: string
+  }
 }
