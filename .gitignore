@@ -11,3 +11,4 @@ frontend/public/mediapipe/
 .env
 .logs/
 .state/
+.taste-skill/
