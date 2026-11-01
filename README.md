@@ -35,23 +35,32 @@ Research and model selection, including licences and Apple-Silicon compatibility
 
 Requirements: macOS on Apple Silicon or Linux, [uv](https://docs.astral.sh/uv/), Node.js ≥ 20, and a webcam for hand control.
 
+**One command** installs, sets up and starts everything. Run it again any time: finished steps are skipped, and dependencies reinstall by themselves after a `git pull` changes them.
+
+```bash
+./start.sh
+```
+
+It accepts the options of the three scripts below (`--skip-models`, `--prod`, `--no-open`, `--cpu`, `--no-multiview`, `--no-completer`), plus `--reinstall`. Or run the steps yourself:
+
 ```bash
 ./scripts/install.sh     # Python 3.12 env (PyTorch with MPS/CUDA) + studio dependencies
 ```
 
 ```bash
-./scripts/setup.sh       # creates .env, downloads model weights (~3.5 GB), runs a health check
+./scripts/setup.sh       # creates .env, downloads model weights (~3.5 GB; +3.8 GB for the Mac completer), runs a health check
 ```
 
 ```bash
-./scripts/run.sh         # API on :8787 + studio on :5173, opens the browser; Ctrl-C stops both
+./scripts/run.sh         # API on :8787 + studio on :5173 (+ local completer on :8790), opens the browser; Ctrl-C stops all
 ```
 
 Options:
 - `install.sh --cpu` installs CPU-only PyTorch, for Linux without an NVIDIA GPU (much smaller).
 - `install.sh --no-multiview` skips multi-photo support.
+- `install.sh --no-completer` skips the local hidden-side generator on Apple Silicon (see its licence below).
 - `setup.sh --download-models` / `--skip-models` decides about the weights without asking.
-- `run.sh --prod` serves an optimised build; `run.sh --no-open` doesn't open the browser.
+- `run.sh --prod` serves an optimised build; `run.sh --no-open` doesn't open the browser. If a port is taken (say by a Docker container), `run.sh` uses the next free one and tells you.
 
 Logs go to `.logs/`. To check your setup at any time:
 
@@ -90,7 +99,10 @@ cd backend && .venv/bin/python -m veronica.cli doctor
 | `VERONICA_DATA` | `backend/data` | where scenes are stored |
 | `VERONICA_API_PORT` / `VERONICA_WEB_PORT` | `8787` / `5173` | native ports |
 | `VERONICA_DOCKER_WEB_PORT` | `8080` | Docker studio port |
-| `VERONICA_COMPLETER_URL` / `_TOKEN` | empty (off) | optional CUDA completer worker |
+| `VERONICA_LOCAL_COMPLETER` | `1` | `0` stops `run.sh` from starting the local Mac completer |
+| `VERONICA_COMPLETER_PORT` | `8790` | local completer port |
+| `VERONICA_COMPLETER_IDLE_UNLOAD` | `300` | seconds idle before the local completer frees its memory |
+| `VERONICA_COMPLETER_URL` / `_TOKEN` | empty | a remote completer (TRELLIS on CUDA); overrides the local one |
 | `TORCH_BACKEND` | `cpu` | Docker API image: `cpu` or a CUDA build such as `cu126` |
 | `HF_CACHE` | Docker volume | absolute path to share a host model cache with Docker |
 
@@ -107,14 +119,16 @@ cd backend && .venv/bin/python -m veronica.cli reconstruct ../samples/desk.png
 - **Several photos of one place.** Depth Anything 3 recovers every camera pose and depth map in one pass, scaled to metres by Depth Pro. Objects are segmented in every view, matched across views in 3D, and **TSDF-fused**. Hidden sides are inferred only where *no* view saw them, and carved against every view's free space. Camera frustums and per-photo viewpoints appear in the viewer.
 - **Refinement.** If the detector missed something, open *Source*, click the thing in the photo (SAM point prompt), or search for it by name. The scene rebuilds in about a second without re-running depth, and your edits are kept.
 
-**Hidden sides without special hardware: more angles**
-- On a Mac (or any machine without an NVIDIA GPU) the generative completer is **off**, and its controls are hidden. Real hidden sides come from **more photos**.
+**Hidden sides from more angles (any machine)**
+- Measured hidden sides come from **more photos**. This works everywhere and is the only way to get real, not invented, geometry for the back of an object.
 - Select several photos at once (3–8, walking around the scene in 20–40° steps with ~60 % overlap; the *How to shoot several angles* tips are in the Reconstruct panel). Or, on an existing scene, use **Add photos from other angles** in the inspector or scene panel. That rebuilds a new multi-view scene from the original photo(s) plus the new ones and keeps the old scene.
 - iPhone HEIC photos are accepted. Portrait and landscape shots can be mixed; views are centre-cropped to a common frame, never stretched.
 
-**Generative hidden sides (optional CUDA worker)**
-- `completer-worker/` is a small service that wraps **TRELLIS** (MIT) on any Linux + NVIDIA (≥16 GB) machine (Docker recipe included). See [completer-worker/README.md](completer-worker/README.md).
-- Disabled unless `VERONICA_COMPLETER_URL` (and optionally `VERONICA_COMPLETER_TOKEN`) is set. In the inspector, *Hidden side → Generate* (or *Generate hidden sides for all objects*) sends each object's masked crop to the worker; multi-view scenes send up to 4 views. The worker returns a textured mesh.
+**Generative hidden sides (on your Mac, or a CUDA worker)**
+- `completer-worker/` is a small service with two engines behind one API. See [completer-worker/README.md](completer-worker/README.md).
+  - **On Apple Silicon: Hunyuan3D-2mini on the Mac's GPU.** `install.sh` installs it and `run.sh` starts it, so *Generate* just works. About 45 s for the first object (model load), then ~20–35 s per object, ~8.7 GB peak memory. It produces shape only; VERONICA colours it from the photo. Before generating, the backend frees its own models so the two fit in 16 GB, and the worker frees its memory after 5 idle minutes. Licence: the weights are under the *Tencent Hunyuan 3D 2.0 Community License*, which **does not grant rights in the EU, the UK or South Korea**. The studio shows this next to the button; opt out with `--no-completer` or `VERONICA_LOCAL_COMPLETER=0`.
+  - **On Linux + NVIDIA (≥16 GB): TRELLIS** (MIT), textured and multi-view conditioned (Docker recipe included). Point `VERONICA_COMPLETER_URL` (and optionally `VERONICA_COMPLETER_TOKEN`) at it.
+- In the inspector, *Hidden side → Generate* (or *Generate hidden sides for all objects*) sends each object's masked crop to the worker; multi-view scenes send up to 4 views (Hunyuan3D-2mini uses the largest).
 - VERONICA then **places** that mesh on the object's measured surface: a 360° heading search scored by surface distance and silhouette overlap in every view, a refit of the top hypotheses, height-anchored metric scale, and resting on its support. It then **carves** away everything any photo observed, so only the unseen side is kept and the observed surface stays the real photo geometry.
 - Fits that don't match (silhouette IoU < 0.55, surface RMS too high, implausible footprint) are rejected, and the symmetry prior stays. Results persist across rebuilds and can be reverted per object.
 
@@ -184,8 +198,8 @@ backend/veronica/
   pipeline/refine.py      click/text add-object + fast rebuild
   pipeline/generate.py    generative completion: crops → worker → align → carve → persist
   geometry/align.py       place a generated canonical mesh on the measured surface
-  providers/generative.py client for the CUDA completer worker
-completer-worker/         TRELLIS service for a Linux/NVIDIA host (+ Dockerfile)
+  providers/generative.py client for the completer worker
+completer-worker/         completer service: Hunyuan3D-2mini (Mac, MPS) or TRELLIS (Linux/NVIDIA, + Dockerfile)
   api.py · jobs.py · cli.py · assets.py (binary packet format)
 frontend/src/
   engine/                 VeronicaEngine (scene graph, picking, selection, manipulation
@@ -213,7 +227,8 @@ frontend/src/
 | Hand tracking | GPU delegate, 3.3 ms per frame inference, 1.1 s model load |
 | Gesture → engine (synthetic hands in the live app) | Pinch-grab drag moves the object ≈1:1 with the hand (0.164 vs 0.158 viewport). Two-hand 2× spread → 1.96× scale. 45° wrist roll → 44.9° object twist, kept on release. Every edit is one undo step |
 | Generative completion (stand-in engine) | A cube returned at 3× scale, wrong heading and wrong place → aligned back to 0.5 m; only its back kept after carving; texture UVs correct; kept after a rebuild; revert restores the prior. A thin pole is rejected. L-shaped object: heading error 0–2° (worst ~18°), RMS 0.5–2 cm |
-| Automated tests | `backend`: 17 pytest (synthetic ray-traced room: metric cube recovery, floor at y = 0, camera height, carving, revolve radius, API path safety, worker contract, alignment, generative end-to-end). `frontend`: 16 vitest (features, hysteresis, fist ≠ pinch, tap, click-slip, swipe cooldown, hand loss, filters, history, packets) |
+| Generative completion on the Mac (Hunyuan3D-2mini, Metal) | Monitor from the desk photo: accepted (silhouette IoU 0.75, surface RMS 1.1 cm), 89 % of the generated shape carved away as already observed, the remaining back kept; the monitor went from 48 % to 14 % inferred. 43 s from a cold start including model load; crops alone 17–33 s; 8.7 GB peak. Speaker: generated nearly flat, so nothing unseen remained and the prior was kept |
+| Automated tests | `backend`: 23 pytest (synthetic ray-traced room: metric cube recovery, floor at y = 0, camera height, carving, revolve radius, API path safety, worker contract, lazy model load, engine choice, alignment, generative end-to-end, photo colouring of untextured shapes). `frontend`: 16 vitest (features, hysteresis, fist ≠ pinch, tap, click-slip, swipe cooldown, hand loss, filters, history, packets) |
 
 Run them with:
 
@@ -229,7 +244,8 @@ cd frontend && npx vitest run
 
 ## Honest limitations
 
-- **Single-photo hidden sides are guesses.** They come from symmetry and revolution priors, or from TRELLIS when a CUDA worker is attached, and are always marked. A generator gives far better shapes for asymmetric objects, but it is still a guess. Heading can be ambiguous from one view (single-view alignment tests: 0–2° error on most headings, up to ~18° on the hardest), and more photos fix that.
+- **Single-photo hidden sides are guesses.** They come from symmetry and revolution priors, or from a generator (Hunyuan3D-2mini on the Mac, TRELLIS on CUDA), and are always marked. A generator gives far better shapes for asymmetric objects, but it is still a guess. Heading can be ambiguous from one view (single-view alignment tests: 0–2° error on most headings, up to ~18° on the hardest), and more photos fix that.
+- **The Mac generator is shape-only and single-image.** Hunyuan3D-2mini makes plausible shapes for compact objects but can flatten thin or boxy ones (the desk speaker came back as a slab and was rejected). Colour on the hidden side is borrowed from the visible side.
 - **The CUDA worker is untested on real hardware.** No NVIDIA GPU was available while building it. Its HTTP contract, VERONICA's alignment, carving, persistence and UI were verified with a stand-in engine; the TRELLIS calls follow TRELLIS's own example and pipeline source.
 - **Absolute scale** comes from monocular depth (±10–20 %). Relative layout is better.
 - **Thin and see-through parts.** Cables, chair legs and glass are hard for monocular depth. See-through gaps inside a mask are returned to the room planes when they lie on them.

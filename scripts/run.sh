@@ -22,8 +22,15 @@ WEB_PORT="${VERONICA_WEB_PORT:-5173}"
 [ -x "$ROOT/backend/.venv/bin/uvicorn" ] || die "Dependencies missing — run ./scripts/install.sh first."
 [ -d "$ROOT/frontend/node_modules" ] || die "Frontend dependencies missing — run ./scripts/install.sh first."
 port_busy() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }
-port_busy "$API_PORT" && die "Port $API_PORT is in use (set VERONICA_API_PORT in .env)"
-port_busy "$WEB_PORT" && die "Port $WEB_PORT is in use (set VERONICA_WEB_PORT in .env)"
+# first free port from $1 upward (another app — often a Docker container — may hold the default)
+free_port() {
+  local p="$1"
+  while port_busy "$p"; do p=$((p + 1)); [ "$p" -gt $(($1 + 20)) ] && die "No free port near $1 (set it in .env)"; done
+  [ "$p" != "$1" ] && warn "Port $1 is in use; using $p" >&2
+  echo "$p"
+}
+API_PORT="$(free_port "$API_PORT")"
+WEB_PORT="$(free_port "$WEB_PORT")"
 
 LOGS="$ROOT/.logs"; mkdir -p "$LOGS"
 PIDS=()
@@ -41,15 +48,12 @@ trap cleanup INT TERM EXIT
 # remote completer is configured or VERONICA_LOCAL_COMPLETER=0.
 CPORT="${VERONICA_COMPLETER_PORT:-8790}"
 if [ -z "${VERONICA_COMPLETER_URL:-}" ] && [ "${VERONICA_LOCAL_COMPLETER:-1}" != 0 ] && [ -x "$ROOT/completer-worker/.venv/bin/uvicorn" ]; then
-  if port_busy "$CPORT"; then
-    warn "Port $CPORT is in use; local completer not started (set VERONICA_COMPLETER_PORT in .env)"
-  else
-    say "Starting local completer on :$CPORT (log: .logs/completer.log; model loads on first use)"
-    ( cd "$ROOT/completer-worker" && VERONICA_COMPLETER_ENGINE=hunyuan3d-mini VERONICA_COMPLETER_IDLE_UNLOAD="${VERONICA_COMPLETER_IDLE_UNLOAD:-300}" \
-        exec ./.venv/bin/uvicorn worker:app --host 127.0.0.1 --port "$CPORT" ) >"$LOGS/completer.log" 2>&1 &
-    PIDS+=($!)
-    export VERONICA_COMPLETER_URL="http://127.0.0.1:$CPORT"
-  fi
+  CPORT="$(free_port "$CPORT")"
+  say "Starting local completer on :$CPORT (log: .logs/completer.log; model loads on first use)"
+  ( cd "$ROOT/completer-worker" && VERONICA_COMPLETER_ENGINE=hunyuan3d-mini VERONICA_COMPLETER_IDLE_UNLOAD="${VERONICA_COMPLETER_IDLE_UNLOAD:-300}" \
+      exec ./.venv/bin/uvicorn worker:app --host 127.0.0.1 --port "$CPORT" ) >"$LOGS/completer.log" 2>&1 &
+  PIDS+=($!)
+  export VERONICA_COMPLETER_URL="http://127.0.0.1:$CPORT"
 fi
 
 say "Starting API on :$API_PORT (log: .logs/api.log)"

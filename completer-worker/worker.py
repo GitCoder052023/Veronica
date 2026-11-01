@@ -158,8 +158,15 @@ class HunyuanMiniEngine:
         self.name = f"{self.REPO}/{self.sub}"
         self.device = _torch_device()
         dtype = torch.float32 if self.device == "cpu" else torch.float16
-        self.pipe = Hunyuan3DDiTFlowMatchingPipeline.from_pretrained(self.REPO, subfolder=self.sub, use_safetensors=True, variant="fp16",
-                                                                     device=self.device, dtype=dtype)
+        # hy3dgen's from_pretrained downloads the whole subfolder, i.e. a .ckpt duplicate of
+        # the weights (another 3.8 GB); fetch only the config and the safetensors.
+        from huggingface_hub import snapshot_download
+
+        files = [f"{self.sub}/config.yaml", f"{self.sub}/model.fp16.safetensors"]
+        root = snapshot_download(self.REPO, allow_patterns=files + ["LICENSE", "NOTICE"])
+        self.pipe = Hunyuan3DDiTFlowMatchingPipeline.from_single_file(
+            os.path.join(root, files[1]), os.path.join(root, files[0]), device=self.device, dtype=dtype, use_safetensors=True,
+            from_pretrained_kwargs={"model_path": self.REPO, "subfolder": self.sub, "use_safetensors": True, "variant": "fp16", "dtype": dtype, "device": self.device})
         for attr in ("sigmas", "timesteps"):  # schedulers build these in float64, which MPS cannot hold
             v = getattr(self.pipe.scheduler, attr, None)
             if torch.is_tensor(v) and v.dtype == torch.float64:
